@@ -1,0 +1,57 @@
+# Build the Playzone9 production site from the JSK1 master and deploy it to
+# THIS repository's GitHub Pages (same-repo Pages pattern, mirroring
+# jsk1/.github/workflows/static.yml). The master is checked out read-only;
+# nothing here duplicates or modifies it. The artifact carries no CNAME.
+name: Deploy Playzone9 (production)
+
+# Manual only for now. push / schedule / repository_dispatch are intentionally
+# omitted until Supabase + --from-cms are ready.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read      # read the checked-out source + deploy with GITHUB_TOKEN
+  pages: write        # deploy to this repo's Pages
+  id-token: write     # OIDC token actions/deploy-pages needs
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      # Build SOURCE = the JSK1 master at main. jsk1 is public, so the built-in
+      # GITHUB_TOKEN can read it; if it were private, add:
+      #   token: ${{ secrets.JSK1_READ_TOKEN }}
+      - name: Checkout JSK1 master (build source)
+        uses: actions/checkout@v4
+        with:
+          repository: rajputnikhil8441/jsk1
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # Production build, NO --from-cms (bakes the committed brand.js; add
+      # --from-cms only after the Supabase row exists). Artifact carries no CNAME.
+      - name: Assemble the Playzone9 site
+        run: node tools/build-site.js playzone9.app --out _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site/playzone9.app'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
